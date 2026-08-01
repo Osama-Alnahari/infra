@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.0](https://github.com/e2b-dev/infra/compare/api-v0.0.1...api-v0.1.0) (2026-08-01)
+
+
+### Features
+
+* **api:** return BYOC cluster domain from volume endpoints ([#3490](https://github.com/e2b-dev/infra/issues/3490)) ([24a054b](https://github.com/e2b-dev/infra/commit/24a054bca26ec50a6d59031d9360c1582612b3f8))
+
 ## 0.0.1 (2026-07-30)
 
 
