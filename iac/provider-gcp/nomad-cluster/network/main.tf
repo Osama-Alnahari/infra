@@ -13,7 +13,7 @@ data "google_secret_manager_secret_version" "cloudflare_api_token" {
 }
 
 provider "cloudflare" {
-  api_token = var.manage_cloudflare_dns ? data.google_secret_manager_secret_version.cloudflare_api_token[0].secret_data : "external-dns-not-managed"
+  api_token = var.manage_cloudflare_dns ? data.google_secret_manager_secret_version.cloudflare_api_token[0].secret_data : "external_dns_not_managed_000000000000000"
 }
 
 locals {
