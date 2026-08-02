@@ -8,11 +8,12 @@ terraform {
 }
 
 data "google_secret_manager_secret_version" "cloudflare_api_token" {
+  count  = var.manage_cloudflare_dns ? 1 : 0
   secret = var.cloudflare_api_token_secret_name
 }
 
 provider "cloudflare" {
-  api_token = data.google_secret_manager_secret_version.cloudflare_api_token.secret_data
+  api_token = var.manage_cloudflare_dns ? data.google_secret_manager_secret_version.cloudflare_api_token[0].secret_data : "external-dns-not-managed"
 }
 
 locals {
@@ -110,11 +111,13 @@ locals {
 # ======== CLOUDFLARE ====================
 
 data "cloudflare_zone" "domain" {
-  name = local.root_domain
+  count = var.manage_cloudflare_dns ? 1 : 0
+  name  = local.root_domain
 }
 
 resource "cloudflare_record" "dns_auth" {
-  zone_id = data.cloudflare_zone.domain.id
+  count   = var.manage_cloudflare_dns ? 1 : 0
+  zone_id = data.cloudflare_zone.domain[0].id
   name    = google_certificate_manager_dns_authorization.dns_auth.dns_resource_record[0].name
   value   = google_certificate_manager_dns_authorization.dns_auth.dns_resource_record[0].data
   type    = google_certificate_manager_dns_authorization.dns_auth.dns_resource_record[0].type
@@ -122,7 +125,8 @@ resource "cloudflare_record" "dns_auth" {
 }
 
 resource "cloudflare_record" "a_star" {
-  zone_id = data.cloudflare_zone.domain.id
+  count   = var.manage_cloudflare_dns ? 1 : 0
+  zone_id = data.cloudflare_zone.domain[0].id
   name    = local.is_subdomain ? "*.${local.subdomain}" : "*"
   value   = google_compute_global_forwarding_rule.https.ip_address
   type    = "A"
@@ -130,13 +134,13 @@ resource "cloudflare_record" "a_star" {
 }
 
 data "cloudflare_zone" "domains_additional" {
-  for_each = local.domain_map
+  for_each = var.manage_cloudflare_dns ? local.domain_map : {}
   name     = each.value
 }
 
 
 resource "cloudflare_record" "dns_auth_additional" {
-  for_each = local.domain_map
+  for_each = var.manage_cloudflare_dns ? local.domain_map : {}
   zone_id  = data.cloudflare_zone.domains_additional[each.key].id
   name     = google_certificate_manager_dns_authorization.dns_auth_additional[each.key].dns_resource_record[0].name
   value    = google_certificate_manager_dns_authorization.dns_auth_additional[each.key].dns_resource_record[0].data
@@ -146,7 +150,7 @@ resource "cloudflare_record" "dns_auth_additional" {
 
 
 resource "cloudflare_record" "a_star_additional" {
-  for_each = local.domain_map
+  for_each = var.manage_cloudflare_dns ? local.domain_map : {}
   zone_id  = data.cloudflare_zone.domains_additional[each.key].id
   name     = "*"
   value    = google_compute_global_forwarding_rule.https.ip_address

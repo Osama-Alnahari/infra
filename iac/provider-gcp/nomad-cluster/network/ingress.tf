@@ -133,12 +133,12 @@ resource "google_compute_target_https_proxy" "ingress" {
 }
 
 data "cloudflare_zone" "zone" {
-  for_each = local.ingress_zones
+  for_each = var.manage_cloudflare_dns ? local.ingress_zones : toset([])
   name     = each.value
 }
 
 resource "cloudflare_record" "records" {
-  for_each = local.routing_matrix
+  for_each = var.manage_cloudflare_dns ? local.routing_matrix : {}
 
   zone_id = data.cloudflare_zone.zone[each.value.root_domain].id
   name    = each.value.record_name

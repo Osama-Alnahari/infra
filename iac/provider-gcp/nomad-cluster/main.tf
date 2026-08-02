@@ -102,6 +102,7 @@ module "network" {
   environment = var.environment
 
   cloudflare_api_token_secret_name = var.cloudflare_api_token_secret_name
+  manage_cloudflare_dns            = false
 
   gcp_project_id = var.gcp_project_id
   gcp_region     = var.gcp_region

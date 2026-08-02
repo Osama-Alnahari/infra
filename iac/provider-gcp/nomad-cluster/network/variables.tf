@@ -47,6 +47,12 @@ variable "cloudflare_api_token_secret_name" {
   type = string
 }
 
+variable "manage_cloudflare_dns" {
+  description = "Whether Terraform should manage DNS records through Cloudflare. Disable when the authoritative zone is managed externally."
+  type        = bool
+  default     = true
+}
+
 variable "api_port" {
   type = object({
     name        = string
