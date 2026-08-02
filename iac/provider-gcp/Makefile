@@ -40,6 +40,7 @@ tf_vars := \
 	$(call tfvar, GCP_ZONE) \
 	$(call tfvar, NETWORK_NAME) \
 	$(call tfvar, DOMAIN_NAME) \
+	$(call tfvar, NOMAD_ADDRESS) \
 	$(call tfvar, PREFIX) \
 	$(call tfvar, ORCHESTRATOR_ENABLED) \
 	$(call tfvar, API_INTERNAL_GRPC_PORT) \

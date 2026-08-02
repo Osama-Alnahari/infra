@@ -69,9 +69,11 @@ mkdir -p /orchestrator/sandbox
 mkdir -p /orchestrator/template
 mkdir -p /orchestrator/build
 
-# Add swapfile
-SWAPFILE="/swapfile"
-fallocate -l 100G $SWAPFILE
+# Keep swap on the dedicated cache disk. The upstream 100 GiB root-disk
+# allocation does not fit reduced PoC workers and aborts bootstrap before
+# Nomad starts.
+SWAPFILE="/orchestrator/swapfile"
+fallocate -l 16G $SWAPFILE
 chmod 600 $SWAPFILE
 mkswap $SWAPFILE
 swapon $SWAPFILE

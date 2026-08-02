@@ -397,6 +397,7 @@ module "nomad" {
   consul_acl_token_secret = module.init.consul_acl_token_secret
   nomad_acl_token_secret  = module.init.nomad_acl_token_secret
   nomad_port              = var.nomad_port
+  nomad_address           = var.nomad_address
   core_repository_name    = module.init.core_repository_name
 
   # Clickhouse

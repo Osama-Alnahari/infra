@@ -27,7 +27,7 @@ data "google_secret_manager_secret_version" "launch_darkly_api_key" {
 }
 
 provider "nomad" {
-  address      = "https://nomad.${var.domain_name}"
+  address      = coalesce(var.nomad_address, "https://nomad.${var.domain_name}")
   secret_id    = var.nomad_acl_token_secret
   consul_token = var.consul_acl_token_secret
 }
@@ -322,6 +322,7 @@ data "google_secret_manager_secret_version" "grafana_logs_collector_api_token" {
 
 module "logs_collector" {
   source = "../../modules/job-logs-collector"
+  count  = var.loki_machine_count > 0 ? 1 : 0
 
   loki_endpoint = "http://loki.service.consul:${var.loki_service_port.port}"
 
@@ -382,7 +383,7 @@ module "template_manager" {
   artifact_source = local.template_manager_artifact_source
   job_env_vars    = var.template_manager_env_vars
 
-  nomad_addr  = "https://nomad.${var.domain_name}"
+  nomad_addr  = coalesce(var.nomad_address, "https://nomad.${var.domain_name}")
   nomad_token = var.nomad_acl_token_secret
 }
 
@@ -405,6 +406,7 @@ module "template_manager_autoscaler" {
 
 module "loki" {
   source = "../../modules/job-loki"
+  count  = var.loki_machine_count > 0 ? 1 : 0
 
   provider_name = "gcp"
 
@@ -451,18 +453,26 @@ resource "google_secret_manager_secret_version" "clickhouse_server_secret_value"
 }
 
 resource "google_service_account" "clickhouse_service_account" {
-  account_id   = "${var.prefix}clickhouse-service-account"
+  count = var.clickhouse_server_count > 0 ? 1 : 0
+
+  # GCP service-account IDs are limited to 30 characters. Keep the
+  # environment prefix while using a compact, deterministic suffix.
+  account_id   = substr("${var.prefix}clickhouse-sa", 0, 30)
   display_name = "${var.prefix}clickhouse-service-account"
 }
 
 resource "google_storage_bucket_iam_member" "clickhouse_service_account_iam" {
+  count = var.clickhouse_server_count > 0 ? 1 : 0
+
   bucket = var.clickhouse_backups_bucket_name
   role   = "roles/storage.objectAdmin"
-  member = "serviceAccount:${google_service_account.clickhouse_service_account.email}"
+  member = "serviceAccount:${google_service_account.clickhouse_service_account[0].email}"
 }
 
 resource "google_storage_hmac_key" "clickhouse_hmac_key" {
-  service_account_email = google_service_account.clickhouse_service_account.email
+  count = var.clickhouse_server_count > 0 ? 1 : 0
+
+  service_account_email = google_service_account.clickhouse_service_account[0].email
 }
 
 module "clickhouse" {

@@ -39,6 +39,12 @@ variable "nomad_port" {
   type = number
 }
 
+variable "nomad_address" {
+  type     = string
+  default  = null
+  nullable = true
+}
+
 variable "otel_collector_resources_memory_mb" {
   type = number
 }

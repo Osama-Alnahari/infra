@@ -406,6 +406,13 @@ variable "domain_name" {
   description = "The domain name where e2b will run"
 }
 
+variable "nomad_address" {
+  type        = string
+  description = "Optional Nomad API address override used for private bootstrap access"
+  default     = null
+  nullable    = true
+}
+
 variable "prefix" {
   type        = string
   description = "The prefix to use for all resources in this module"

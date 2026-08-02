@@ -550,6 +550,24 @@ resource "google_compute_firewall" "internal_remote_connection_firewall_ingress"
   source_ranges = var.environment == "dev" ? ["0.0.0.0/0"] : ["35.235.240.0/20"]
 }
 
+# Consul gossip/RPC, Nomad RPC/HTTP and service traffic must flow between the
+# orchestrator nodes. Custom-mode VPCs do not create an implicit internal
+# allow rule, so without this rule nodes discover one another through GCE but
+# cannot join the cluster.
+resource "google_compute_firewall" "orchestrator_internal_ingress" {
+  name    = "${var.prefix}${var.cluster_tag_name}-internal-ingress"
+  network = var.network_name
+
+  allow {
+    protocol = "all"
+  }
+
+  priority      = 800
+  direction     = "INGRESS"
+  target_tags   = [var.cluster_tag_name]
+  source_ranges = ["10.0.0.0/8"]
+}
+
 resource "google_compute_firewall" "remote_connection_firewall_ingress" {
   name    = "${var.prefix}${var.cluster_tag_name}-remote-connection-firewall-ingress"
   network = var.network_name

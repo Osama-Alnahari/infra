@@ -70,6 +70,14 @@ resource "google_project_iam_member" "network_viewer" {
   role    = "roles/compute.networkViewer"
 }
 
+# Consul's GCE retry_join provider lists tagged instances to discover the
+# server. networkViewer alone cannot list compute instances.
+resource "google_project_iam_member" "compute_viewer" {
+  project = var.gcp_project_id
+  member  = "serviceAccount:${var.google_service_account_email}"
+  role    = "roles/compute.viewer"
+}
+
 resource "google_project_iam_member" "monitoring_editor" {
   project = var.gcp_project_id
   member  = "serviceAccount:${var.google_service_account_email}"
