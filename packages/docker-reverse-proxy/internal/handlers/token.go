@@ -12,6 +12,8 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/oauth2/google"
+
 	"github.com/e2b-dev/infra/packages/docker-reverse-proxy/internal/auth"
 	"github.com/e2b-dev/infra/packages/shared/pkg/consts"
 	"github.com/e2b-dev/infra/packages/shared/pkg/featureflags"
@@ -140,8 +142,17 @@ func getToken(ctx context.Context, templateID string) (*DockerToken, error) {
 		return nil, fmt.Errorf("failed to create request for scope - %s: %w", templateID, err)
 	}
 
-	// Use the service account credentials for the request
-	r.Header.Set("Authorization", fmt.Sprintf("Basic %s", consts.EncodedDockerCredentials))
+	// Use the API VM's attached service account. This avoids exporting a
+	// long-lived JSON key and works with iam.disableServiceAccountKeyCreation.
+	tokenSource, err := google.DefaultTokenSource(ctx, "https://www.googleapis.com/auth/cloud-platform")
+	if err != nil {
+		return nil, fmt.Errorf("failed to create ADC token source: %w", err)
+	}
+	accessToken, err := tokenSource.Token()
+	if err != nil {
+		return nil, fmt.Errorf("failed to obtain ADC access token: %w", err)
+	}
+	r.SetBasicAuth("oauth2accesstoken", accessToken.AccessToken)
 
 	resp, err := http.DefaultClient.Do(r)
 	if err != nil {

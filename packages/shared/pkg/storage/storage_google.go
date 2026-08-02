@@ -18,6 +18,7 @@ import (
 	"github.com/googleapis/gax-go/v2"
 	"go.opentelemetry.io/otel/attribute"
 	"go.uber.org/zap"
+	iamcredentials "google.golang.org/api/iamcredentials/v1"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
 	"google.golang.org/api/option/internaloption"
@@ -122,17 +123,38 @@ func (s *gcpStorage) GetDetails() string {
 	return fmt.Sprintf("[GCP Storage, bucket set to %s]", s.bucket.BucketName())
 }
 
-func (s *gcpStorage) UploadSignedURL(_ context.Context, path string, ttl time.Duration) (string, error) {
-	token, err := parseServiceAccountBase64(consts.GoogleServiceAccountSecret)
-	if err != nil {
-		return "", fmt.Errorf("failed to parse GCP service account: %w", err)
+func (s *gcpStorage) UploadSignedURL(ctx context.Context, path string, ttl time.Duration) (string, error) {
+	opts := &storage.SignedURLOptions{
+		Method:  http.MethodPut,
+		Expires: time.Now().Add(ttl),
 	}
 
-	opts := &storage.SignedURLOptions{
-		GoogleAccessID: token.ClientEmail,
-		PrivateKey:     []byte(token.PrivateKey),
-		Method:         http.MethodPut,
-		Expires:        time.Now().Add(ttl),
+	if consts.GoogleServiceAccountSecret != "" {
+		token, err := parseServiceAccountBase64(consts.GoogleServiceAccountSecret)
+		if err != nil {
+			return "", fmt.Errorf("failed to parse GCP service account: %w", err)
+		}
+		opts.GoogleAccessID = token.ClientEmail
+		opts.PrivateKey = []byte(token.PrivateKey)
+	} else {
+		if consts.GCPServiceAccountEmail == "" {
+			return "", errors.New("GCP_SERVICE_ACCOUNT_EMAIL is required for keyless signed URLs")
+		}
+		iamService, err := iamcredentials.NewService(ctx)
+		if err != nil {
+			return "", fmt.Errorf("create IAM Credentials client: %w", err)
+		}
+		opts.GoogleAccessID = consts.GCPServiceAccountEmail
+		opts.SignBytes = func(data []byte) ([]byte, error) {
+			response, err := iamService.Projects.ServiceAccounts.SignBlob(
+				"projects/-/serviceAccounts/"+consts.GCPServiceAccountEmail,
+				&iamcredentials.SignBlobRequest{Payload: base64.StdEncoding.EncodeToString(data)},
+			).Context(ctx).Do()
+			if err != nil {
+				return nil, fmt.Errorf("sign URL payload with IAM Credentials: %w", err)
+			}
+			return base64.StdEncoding.DecodeString(response.SignedBlob)
+		}
 	}
 
 	url, err := storage.SignedURL(s.bucket.BucketName(), path, opts)

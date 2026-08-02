@@ -3,7 +3,8 @@ output "service_account_email" {
 }
 
 output "google_service_account_key" {
-  value = google_service_account_key.google_service_key.private_key
+  description = "Deprecated: GCP nodes use their attached service account through ADC."
+  value       = ""
 }
 
 output "consul_acl_token_secret" {

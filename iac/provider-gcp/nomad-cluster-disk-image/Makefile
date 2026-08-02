@@ -21,6 +21,7 @@ build:
 		$(if $(PACKER_NETWORK_NAME),-var "network_name=$(PACKER_NETWORK_NAME)") \
 		$(if $(PACKER_SUBNET_NAME),-var "subnet_name=$(PACKER_SUBNET_NAME)") \
 		$(if $(PACKER_SOURCE_IMAGE),-var "source_image=$(PACKER_SOURCE_IMAGE)") \
+		$(if $(PACKER_MACHINE_TYPE),-var "machine_type=$(PACKER_MACHINE_TYPE)") \
 		-var "gcp_project_id=$(GCP_PROJECT_ID)" \
 		-var "gcp_zone=$(GCP_ZONE)" \
 		.

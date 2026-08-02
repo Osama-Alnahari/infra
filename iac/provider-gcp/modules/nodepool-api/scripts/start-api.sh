@@ -40,12 +40,8 @@ mkdir -p /root/docker
 touch /root/docker/config.json
 cat <<EOF >/root/docker/config.json
 {
-    "auths": {
-        "${GCP_REGION}-docker.pkg.dev": {
-            "username": "_json_key_base64",
-            "password": "${GOOGLE_SERVICE_ACCOUNT_KEY}",
-            "server_address": "https://${GCP_REGION}-docker.pkg.dev"
-        }
+    "credHelpers": {
+        "${GCP_REGION}-docker.pkg.dev": "gcloud"
     }
 }
 EOF

@@ -10,6 +10,7 @@ import (
 	"github.com/google/go-containerregistry/pkg/authn"
 	"github.com/google/go-containerregistry/pkg/name"
 	containerregistry "github.com/google/go-containerregistry/pkg/v1"
+	gcrgoogle "github.com/google/go-containerregistry/pkg/v1/google"
 	"github.com/google/go-containerregistry/pkg/v1/remote"
 
 	"github.com/e2b-dev/infra/packages/shared/pkg/consts"
@@ -32,7 +33,12 @@ func NewGCPRemoteRepository(ctx context.Context, repositoryURL string) (*GCPRemo
 		return nil, fmt.Errorf("error creating artifact registry client: %w", err)
 	}
 
-	authToken, err := getAuthToken(ctx)
+	ref, err := name.ParseReference(repositoryURL + "/credential-probe:latest")
+	if err != nil {
+		return nil, fmt.Errorf("invalid remote repository URL: %w", err)
+	}
+
+	authToken, err := getAuthToken(ctx, ref)
 	if err != nil {
 		return nil, fmt.Errorf("error getting auth token: %w", err)
 	}
@@ -59,10 +65,14 @@ func (g *GCPRemoteRepository) GetImage(_ context.Context, tag string, platform c
 	return img, nil
 }
 
-func getAuthToken(_ context.Context) (authn.Authenticator, error) {
+func getAuthToken(_ context.Context, ref name.Reference) (authn.Authenticator, error) {
 	authCfg := consts.DockerAuthConfig
 	if authCfg == "" {
-		return &gcpAuthConfig, nil
+		if consts.GoogleServiceAccountSecret != "" {
+			return &gcpAuthConfig, nil
+		}
+
+		return gcrgoogle.Keychain.Resolve(ref.Context().Registry)
 	}
 
 	decoded, err := base64.URLEncoding.DecodeString(authCfg)

@@ -168,7 +168,11 @@ resource "google_compute_instance_template" "template" {
   }
 
   scheduling {
-    on_host_maintenance = "MIGRATE"
+    # GCE cannot live-migrate the small N2 workers used by the Etlaq PoC when
+    # they have Local SSDs attached. Persistent-disk workers remain eligible
+    # for live migration; Local SSD workers are recreated after maintenance.
+    on_host_maintenance = local.has_local_ssd ? "TERMINATE" : "MIGRATE"
+    automatic_restart   = true
   }
 
   disk {

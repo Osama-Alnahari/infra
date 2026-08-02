@@ -11,6 +11,7 @@ import (
 	"github.com/google/go-containerregistry/pkg/authn"
 	"github.com/google/go-containerregistry/pkg/name"
 	containerregistry "github.com/google/go-containerregistry/pkg/v1"
+	gcrgoogle "github.com/google/go-containerregistry/pkg/v1/google"
 	"github.com/google/go-containerregistry/pkg/v1/remote"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -65,7 +66,7 @@ func (g *GCPArtifactsRegistry) GetImage(ctx context.Context, templateId string, 
 		return nil, fmt.Errorf("invalid image reference: %w", err)
 	}
 
-	auth, err := g.getAuthToken(ctx)
+	auth, err := g.getAuthToken(ctx, ref)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get auth: %w", err)
 	}
@@ -78,10 +79,14 @@ func (g *GCPArtifactsRegistry) GetImage(ctx context.Context, templateId string, 
 	return img, nil
 }
 
-func (g *GCPArtifactsRegistry) getAuthToken(_ context.Context) (*authn.Basic, error) {
+func (g *GCPArtifactsRegistry) getAuthToken(_ context.Context, ref name.Reference) (authn.Authenticator, error) {
 	authCfg := consts.DockerAuthConfig
 	if authCfg == "" {
-		return &gcpAuthConfig, nil
+		if consts.GoogleServiceAccountSecret != "" {
+			return &gcpAuthConfig, nil
+		}
+
+		return gcrgoogle.Keychain.Resolve(ref.Context().Registry)
 	}
 
 	decoded, err := base64.URLEncoding.DecodeString(authCfg)

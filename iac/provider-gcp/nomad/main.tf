@@ -465,10 +465,6 @@ resource "google_storage_hmac_key" "clickhouse_hmac_key" {
   service_account_email = google_service_account.clickhouse_service_account.email
 }
 
-resource "google_service_account_key" "clickhouse_service_account_key" {
-  service_account_id = google_service_account.clickhouse_service_account.id
-}
-
 module "clickhouse" {
   source = "../../modules/job-clickhouse"
 
@@ -492,8 +488,10 @@ module "clickhouse" {
   otel_exporter_endpoint  = "http://localhost:${var.otel_collector_grpc_port}"
 
   # Backup
-  backup_bucket                = var.clickhouse_backups_bucket_name
-  gcs_credentials_json_encoded = google_service_account_key.clickhouse_service_account_key.private_key
+  backup_bucket = var.clickhouse_backups_bucket_name
+  # ClickHouse is disabled in the Etlaq PoC. Avoid a long-lived service-account
+  # key; GCP organization policy intentionally forbids creating one.
+  gcs_credentials_json_encoded = ""
 
   # Migrator
   clickhouse_migrator_image = data.google_artifact_registry_docker_image.clickhouse_migrator_image.self_link

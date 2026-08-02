@@ -44,3 +44,8 @@ variable "source_image" {
   type    = string
   default = "ubuntu-2404-noble-amd64-v20260517"
 }
+
+variable "machine_type" {
+  type    = string
+  default = "n1-standard-4"
+}

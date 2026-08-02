@@ -165,6 +165,7 @@ locals {
   template_manager_env_vars = merge({
     CONSUL_TOKEN                    = module.init.consul_acl_token_secret
     GOOGLE_SERVICE_ACCOUNT_BASE64   = module.init.google_service_account_key
+    GCP_SERVICE_ACCOUNT_EMAIL       = module.init.service_account_email
     GCP_PROJECT_ID                  = var.gcp_project_id
     GCP_REGION                      = var.gcp_region
     GCP_DOCKER_REPOSITORY_NAME      = google_artifact_registry_repository.custom_environments_repository.name
@@ -187,7 +188,7 @@ locals {
 
   docker_reverse_proxy_env_vars = merge({
     POSTGRES_CONNECTION_STRING    = data.google_secret_manager_secret_version.postgres_connection_string.secret_data
-    GOOGLE_SERVICE_ACCOUNT_BASE64 = google_service_account_key.google_service_key.private_key
+    GOOGLE_SERVICE_ACCOUNT_BASE64 = ""
     GCP_REGION                    = var.gcp_region
     GCP_PROJECT_ID                = var.gcp_project_id
     GCP_DOCKER_REPOSITORY_NAME    = google_artifact_registry_repository.custom_environments_repository.name
