@@ -2,8 +2,8 @@ variable "cluster_size" {
   type = number
 
   validation {
-    condition     = var.cluster_size >= 1
-    error_message = "Cluster size must be at least 1."
+    condition     = var.cluster_size >= 0
+    error_message = "Cluster size cannot be negative. Use zero to keep an on-demand build cluster stopped."
   }
 }
 
