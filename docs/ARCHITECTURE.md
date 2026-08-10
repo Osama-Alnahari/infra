@@ -202,6 +202,13 @@ looks the sandbox up in the Redis routing catalog to find the owning node, and r
 that node's orchestrator proxy on :5007. If the sandbox is not in the catalog (paused), it calls
 the API's `ResumeSandbox` gRPC and retries — paused sandboxes wake transparently on traffic.
 
+Because sandbox applications are embedded in Studio during preview, the client proxy also
+normalizes application `Set-Cookie` response headers on Etlaq's canonical sandbox domain to
+host-only `Secure; SameSite=None; Partitioned` cookies.
+This keeps preview sessions available inside a cross-site iframe while isolating them to the
+embedding top-level site. Applications deployed outside the sandbox edge do not traverse this
+proxy and retain their own cookie policy.
+
 ### Dashboard API (`packages/dashboard-api`)
 
 A separate REST service (port 3010, spec `spec/openapi-dashboard.yml`) consumed by the web

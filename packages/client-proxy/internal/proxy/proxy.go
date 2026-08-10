@@ -195,7 +195,7 @@ func NewClientProxy(meterProvider metric.MeterProvider, serviceName string, port
 				zap.String("target_port", url.Port()),
 			)
 
-			return &pool.Destination{
+			destination := &pool.Destination{
 				SandboxId:     sandboxId,
 				RequestLogger: l,
 				SandboxPort:   port,
@@ -208,7 +208,12 @@ func NewClientProxy(meterProvider metric.MeterProvider, serviceName string, port
 					sandboxId,
 					port,
 				),
-			}, nil
+			}
+			if isEtlaqSandboxHost(r.Host) {
+				destination.ModifyResponse = normalizeEmbeddedPreviewCookies
+			}
+
+			return destination, nil
 		},
 		nil,
 		false,

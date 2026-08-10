@@ -39,12 +39,20 @@ metrics:
   receivers:
     hostmetrics:
       type: hostmetrics
-      collection_interval: 30s
+      collection_interval: 60s
   processors:
     metrics_filter:
       type: exclude_metrics
       metrics_pattern:
         - agent.googleapis.com/processes/*
+        - agent.googleapis.com/disk/merged_operations
+        - agent.googleapis.com/disk/operation_count
+        - agent.googleapis.com/disk/operation_time
+        - agent.googleapis.com/disk/weighted_io_time
+        - agent.googleapis.com/disk/io_time
+        - agent.googleapis.com/disk/pending_operations
+        - agent.googleapis.com/interface/packets
+        - agent.googleapis.com/interface/errors
   service:
     pipelines:
       default_pipeline:

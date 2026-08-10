@@ -183,6 +183,10 @@ func newProxyClient(
 				)
 			}
 
+			if t.ModifyResponse != nil {
+				return t.ModifyResponse(r)
+			}
+
 			return nil
 		},
 		// Ideally we would add info about sandbox to each error log, but there is no easy way right now.

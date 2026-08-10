@@ -1,6 +1,7 @@
 package pool
 
 import (
+	"net/http"
 	"net/url"
 
 	"github.com/e2b-dev/infra/packages/shared/pkg/logger"
@@ -28,4 +29,7 @@ type Destination struct {
 	IncludeSandboxIdInProxyErrorLogger bool
 	// MaskRequestHost is used to mask the request host.
 	MaskRequestHost *string
+	// ModifyResponse optionally transforms an upstream response before it is
+	// returned to the downstream client.
+	ModifyResponse func(*http.Response) error
 }

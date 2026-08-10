@@ -6,7 +6,7 @@ receivers:
           metrics_path: /v1/metrics
           params:
             format: [prometheus]
-          scrape_interval: 15s
+          scrape_interval: 60s
 
           consul_sd_configs:
             - server: consul.service.consul:8500
