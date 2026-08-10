@@ -14,6 +14,9 @@ import (
 
 // BestOfKConfig holds the configuration parameters for the placement algorithm
 type BestOfKConfig struct {
+	// EnforceCPU uses CPU commitment and utilization for placement scoring.
+	// When false, workers are ranked by committed sandbox memory instead.
+	EnforceCPU bool
 	// R is the cluster-wide max over-commit ratio
 	R float64
 	// Alpha is the weight for CPU usage in the score calculation
@@ -25,15 +28,30 @@ type BestOfKConfig struct {
 // DefaultBestOfKConfig returns the default placement configuration
 func DefaultBestOfKConfig() BestOfKConfig {
 	return BestOfKConfig{
-		R:     4,
-		K:     3,
-		Alpha: 0.5,
+		EnforceCPU: true,
+		R:          4,
+		K:          3,
+		Alpha:      0.5,
 	}
 }
 
 // Score calculates the placement score for this node
 func (b *BestOfK) Score(node *nodemanager.Node, resources nodemanager.SandboxResources, config BestOfKConfig) float64 {
 	metrics := node.Metrics()
+
+	if !config.EnforceCPU {
+		pendingMemoryMiB := int64(0)
+		for _, res := range node.PlacementMetrics.InProgress() {
+			pendingMemoryMiB += res.MiBMemory
+		}
+
+		if metrics.MemoryTotalBytes == 0 {
+			return math.MaxFloat64
+		}
+
+		requestedBytes := uint64(resources.MiBMemory+pendingMemoryMiB) * 1024 * 1024
+		return float64(metrics.MemoryAllocatedBytes+requestedBytes) / float64(metrics.MemoryTotalBytes)
+	}
 
 	// Get locally recorded resources that haven't been reported yet.
 	pendingCPUs := int64(0)
@@ -80,6 +98,12 @@ func (b *BestOfK) getConfig() BestOfKConfig {
 	defer b.mu.RUnlock()
 
 	return b.config
+}
+
+// EnforceCPU reports the stable environment-controlled placement policy. It
+// is preserved when the remaining Best-of-K tuning values refresh from flags.
+func (b *BestOfK) EnforceCPU() bool {
+	return b.getConfig().EnforceCPU
 }
 
 // UpdateConfig updates the BestOfK algorithm configuration

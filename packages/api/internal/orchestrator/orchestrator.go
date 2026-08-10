@@ -141,7 +141,7 @@ func New(
 		Timeout: nodeHealthCheckTimeout,
 	}
 
-	bestOfKAlgorithm := placement.NewBestOfK(getBestOfKConfig(ctx, featureFlags)).(*placement.BestOfK)
+	bestOfKAlgorithm := placement.NewBestOfK(getBestOfKConfig(ctx, featureFlags, config.PlacementEnforceCPU)).(*placement.BestOfK)
 
 	redisStorage, err := redisbackend.NewStorage(redisClient, tel.MeterProvider, featureFlags)
 	if err != nil {
@@ -321,7 +321,7 @@ func (o *Orchestrator) updateBestOfKConfig(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			config := getBestOfKConfig(ctx, o.featureFlagsClient)
+			config := getBestOfKConfig(ctx, o.featureFlagsClient, o.placementAlgorithm.EnforceCPU())
 
 			// Update the config
 			o.placementAlgorithm.UpdateConfig(config)
@@ -329,7 +329,7 @@ func (o *Orchestrator) updateBestOfKConfig(ctx context.Context) {
 	}
 }
 
-func getBestOfKConfig(ctx context.Context, featureFlagsClient *featureflags.Client) placement.BestOfKConfig {
+func getBestOfKConfig(ctx context.Context, featureFlagsClient *featureflags.Client, enforceCPU bool) placement.BestOfKConfig {
 	k := featureFlagsClient.IntFlag(ctx, featureflags.BestOfKSampleSize)
 
 	maxOvercommitPercent := featureFlagsClient.IntFlag(ctx, featureflags.BestOfKMaxOvercommit)
@@ -341,8 +341,9 @@ func getBestOfKConfig(ctx context.Context, featureFlagsClient *featureflags.Clie
 	maxOvercommit := float64(maxOvercommitPercent) / 100.0
 
 	return placement.BestOfKConfig{
-		R:     maxOvercommit,
-		K:     k,
-		Alpha: alpha,
+		R:          maxOvercommit,
+		K:          k,
+		Alpha:      alpha,
+		EnforceCPU: enforceCPU,
 	}
 }

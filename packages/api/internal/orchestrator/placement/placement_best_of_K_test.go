@@ -2,6 +2,7 @@ package placement
 
 import (
 	"fmt"
+	"math"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -96,13 +97,88 @@ func TestBestOfK_Score_WithPendingResources(t *testing.T) {
 	assert.Greater(t, scorePending, scoreNormal, "Node with pending resources should receive a higher (worse) score")
 }
 
+func TestBestOfK_Score_MemoryModeIgnoresCPU(t *testing.T) {
+	t.Parallel()
+	const gib = uint64(1024 * 1024 * 1024)
+	config := DefaultBestOfKConfig()
+	config.EnforceCPU = false
+	algo := NewBestOfK(config).(*BestOfK)
+
+	lowCPU := nodemanager.NewTestNode("low-cpu", api.NodeStatusReady, 1, 32,
+		nodemanager.WithAllocatedMemoryBytes(8*gib),
+		nodemanager.WithTotalMemoryBytes(32*gib),
+	)
+	highCPU := nodemanager.NewTestNode("high-cpu", api.NodeStatusReady, 100, 1,
+		nodemanager.WithAllocatedMemoryBytes(8*gib),
+		nodemanager.WithTotalMemoryBytes(32*gib),
+	)
+	resources := nodemanager.SandboxResources{CPUs: 1, MiBMemory: 4096}
+
+	assert.Equal(t, algo.Score(lowCPU, resources, config), algo.Score(highCPU, resources, config))
+}
+
+func TestBestOfK_Score_MemoryModeIncludesPendingMemory(t *testing.T) {
+	t.Parallel()
+	const gib = uint64(1024 * 1024 * 1024)
+	config := DefaultBestOfKConfig()
+	config.EnforceCPU = false
+	algo := NewBestOfK(config).(*BestOfK)
+
+	node := nodemanager.NewTestNode("node", api.NodeStatusReady, 0, 8,
+		nodemanager.WithAllocatedMemoryBytes(4*gib),
+		nodemanager.WithTotalMemoryBytes(32*gib),
+	)
+	resources := nodemanager.SandboxResources{CPUs: 1, MiBMemory: 4096}
+	withoutPending := algo.Score(node, resources, config)
+	node.PlacementMetrics.StartPlacing("pending", nodemanager.SandboxResources{CPUs: 8, MiBMemory: 4096})
+	withPending := algo.Score(node, resources, config)
+
+	assert.InDelta(t, 0.25, withoutPending, 0.0001)
+	assert.InDelta(t, 0.375, withPending, 0.0001)
+	assert.Greater(t, withPending, withoutPending)
+}
+
+func TestBestOfK_Score_MemoryModeRejectsUnknownCapacity(t *testing.T) {
+	t.Parallel()
+	config := DefaultBestOfKConfig()
+	config.EnforceCPU = false
+	algo := NewBestOfK(config).(*BestOfK)
+	node := nodemanager.NewTestNode("node", api.NodeStatusReady, 0, 8)
+
+	assert.Equal(t, math.MaxFloat64, algo.Score(node, nodemanager.SandboxResources{MiBMemory: 4096}, config))
+}
+
+func TestBestOfK_ChooseNode_MemoryModePrefersAvailableMemory(t *testing.T) {
+	t.Parallel()
+	const gib = uint64(1024 * 1024 * 1024)
+	config := DefaultBestOfKConfig()
+	config.EnforceCPU = false
+	config.K = 2
+	algo := NewBestOfK(config).(*BestOfK)
+
+	memoryBusy := nodemanager.NewTestNode("memory-busy", api.NodeStatusReady, 0, 32,
+		nodemanager.WithAllocatedMemoryBytes(24*gib),
+		nodemanager.WithTotalMemoryBytes(32*gib),
+	)
+	memoryFree := nodemanager.NewTestNode("memory-free", api.NodeStatusReady, 31, 1,
+		nodemanager.WithAllocatedMemoryBytes(4*gib),
+		nodemanager.WithTotalMemoryBytes(32*gib),
+	)
+
+	selected, err := algo.chooseNode(t.Context(), []*nodemanager.Node{memoryBusy, memoryFree}, nil,
+		nodemanager.SandboxResources{CPUs: 1, MiBMemory: 4096}, machineinfo.MachineInfo{}, false, nil)
+	require.NoError(t, err)
+	assert.Equal(t, "memory-free", selected.ID)
+}
+
 func TestBestOfK_ChooseNode(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 	config := BestOfKConfig{
-		R:     10, // Higher overcommit ratio to ensure nodes can fit
-		Alpha: 0.5,
-		K:     3, // Sample all nodes
+		EnforceCPU: true,
+		R:          10, // Higher overcommit ratio to ensure nodes can fit
+		Alpha:      0.5,
+		K:          3, // Sample all nodes
 	}
 	algo := NewBestOfK(config).(*BestOfK)
 
@@ -129,9 +205,10 @@ func TestBestOfK_ChooseNode_WithExclusions(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 	config := BestOfKConfig{
-		R:     10,
-		Alpha: 0.5,
-		K:     3,
+		EnforceCPU: true,
+		R:          10,
+		Alpha:      0.5,
+		K:          3,
 	}
 	algo := NewBestOfK(config).(*BestOfK)
 
@@ -346,9 +423,10 @@ func TestBestOfK_PowerOfKChoices(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 	config := BestOfKConfig{
-		R:     10,
-		Alpha: 0.5,
-		K:     3,
+		EnforceCPU: true,
+		R:          10,
+		Alpha:      0.5,
+		K:          3,
 	}
 	algo := NewBestOfK(config).(*BestOfK)
 

@@ -578,7 +578,7 @@ func BenchmarkPlacementComparison(t *testing.B) {
 		algo Algorithm
 	}{
 		{"BestOfK_K3", NewBestOfK(DefaultBestOfKConfig())},
-		{"BestOfK_K5", NewBestOfK(BestOfKConfig{R: 4, K: 5, Alpha: 0.5})},
+		{"BestOfK_K5", NewBestOfK(BestOfKConfig{EnforceCPU: true, R: 4, K: 5, Alpha: 0.5})},
 	}
 
 	for _, alg := range algorithms {
@@ -642,7 +642,7 @@ func BenchmarkPlacementDistribution(b *testing.B) {
 		// Compare algorithms here. Expect LeastBusy to have serious hotspot issues.
 		// {"LeastBusy", &LeastBusyAlgorithm{}},
 		{"BestOfK_K3", NewBestOfK(DefaultBestOfKConfig())},
-		{"BestOfK_K5", NewBestOfK(BestOfKConfig{R: 4, K: 5, Alpha: 0.5})},
+		{"BestOfK_K5", NewBestOfK(BestOfKConfig{EnforceCPU: true, R: 4, K: 5, Alpha: 0.5})},
 	}
 
 	for _, alg := range algorithms {

@@ -55,6 +55,11 @@ type Config struct {
 	NomadAddress string `env:"NOMAD_ADDRESS" envDefault:"http://localhost:4646"`
 	NomadToken   string `env:"NOMAD_TOKEN"`
 
+	// PlacementEnforceCPU keeps CPU commitments and host CPU utilization in
+	// the Best-of-K worker score. Disable it to rank workers by sandbox memory
+	// commitments instead, while retaining CPU accounting and guest vCPU limits.
+	PlacementEnforceCPU bool `env:"E2B_PLACEMENT_ENFORCE_CPU" envDefault:"true"`
+
 	// NomadOrchestratorServiceNames is the comma-separated list of
 	// Nomad-native service names whose registrations enumerate orchestrator
 	// instances (GET /v1/service/<name> per name, results unioned). Every

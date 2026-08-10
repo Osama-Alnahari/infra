@@ -43,6 +43,26 @@ func TestParse(t *testing.T) {
 		assert.Equal(t, content, result.VolumesToken.SigningKey)
 	})
 
+	t.Run("CPU placement enforcement defaults on and can be disabled", func(t *testing.T) {
+		removeEnv(t, "E2B_PLACEMENT_ENFORCE_CPU")
+
+		result, err := Parse()
+		require.NoError(t, err)
+		assert.True(t, result.PlacementEnforceCPU)
+
+		t.Setenv("E2B_PLACEMENT_ENFORCE_CPU", "false")
+		result, err = Parse()
+		require.NoError(t, err)
+		assert.False(t, result.PlacementEnforceCPU)
+	})
+
+	t.Run("CPU placement enforcement rejects invalid values", func(t *testing.T) {
+		t.Setenv("E2B_PLACEMENT_ENFORCE_CPU", "sometimes")
+
+		_, err := Parse()
+		assert.Error(t, err)
+	})
+
 	t.Run("default persistent volume type by region is parsed as a map", func(t *testing.T) {
 		t.Setenv("DEFAULT_PERSISTENT_VOLUME_TYPE_BY_REGION", "us-west3:zonalfilestore-us-west3,other:other-type")
 

@@ -78,6 +78,7 @@ locals {
     GIN_MODE                       = "release"
     DOMAIN_NAME                    = var.domain_name
     NOMAD_TOKEN                    = module.init.nomad_acl_token_secret
+    E2B_PLACEMENT_ENFORCE_CPU      = "false"
     ORCHESTRATOR_PORT              = tostring(var.orchestrator_port)
     API_INTERNAL_GRPC_PORT         = tostring(var.api_internal_grpc_port)
     ADMIN_TOKEN                    = trimspace(data.google_secret_manager_secret_version.api_admin_token.secret_data)

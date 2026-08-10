@@ -121,7 +121,10 @@ The control-plane entry point (Gin, OpenAPI-generated from `spec/openapi.yml`, p
 - **Placement**: keeps a live map of orchestrator nodes (discovered via Nomad, Kubernetes, or a
   static list). Chooses a node per sandbox with a **best-of-K** algorithm
   (`internal/orchestrator/placement/`): sample K ready nodes, score by CPU
-  commitment/usage, pick the lowest; retry on exhausted nodes. Tunable live via feature flags.
+  commitment/usage by default, pick the lowest, and retry on exhausted nodes. Setting
+  `E2B_PLACEMENT_ENFORCE_CPU=false` switches the score to committed sandbox memory (including
+  in-progress placements); CPU accounting and each guest's vCPU configuration remain intact.
+  The sample size and CPU scoring parameters remain tunable live via feature flags.
 - **State**: writes sandbox records to Redis (source of truth for *running* sandboxes) and the
   sandbox→node **routing catalog** in Redis that client-proxy reads. Persistent entities
   (templates, builds, snapshots, teams) live in Postgres.
