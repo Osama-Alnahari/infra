@@ -210,7 +210,7 @@ func NewClientProxy(meterProvider metric.MeterProvider, serviceName string, port
 				),
 			}
 			if isEtlaqSandboxHost(r.Host) {
-				destination.ModifyResponse = normalizeEmbeddedPreviewCookies
+				destination.ModifyResponse = normalizeEmbeddedPreviewResponse
 			}
 
 			return destination, nil
