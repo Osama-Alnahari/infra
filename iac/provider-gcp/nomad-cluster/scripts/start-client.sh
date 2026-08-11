@@ -52,18 +52,27 @@ exec > >(tee /var/log/user-data.log | logger -t user-data -s 2>/dev/console) 2>&
 
 MOUNT_POINT="/orchestrator"
 
-# Step 1: Format the disk with XFS and 65K block size
-until mkfs.xfs -f -b size=4096 $DISK; do
-  echo "failed to make file system, trying again ... "
+# Wait for the cache disk to become available. A managed-instance replacement
+# can reattach an existing stateful disk, so format only genuinely blank disks.
+until test -b "$DISK"; do
+  echo "waiting for cache disk $DISK ..."
   sleep 1
 done
+
+if ! blkid "$DISK" >/dev/null 2>&1; then
+  until mkfs.xfs -b size=4096 "$DISK"; do
+    echo "failed to make file system, trying again ... "
+    sleep 1
+  done
+fi
 
 # Step 2: Create the mount point
 mkdir -p $MOUNT_POINT
 
 # Step 3: Mount the disk with
-echo "$DISK    $MOUNT_POINT    xfs noatime 0 0" | tee -a /etc/fstab
-mount "$MOUNT_POINT"
+grep -qF "$DISK    $MOUNT_POINT    xfs noatime 0 0" /etc/fstab || \
+  echo "$DISK    $MOUNT_POINT    xfs noatime 0 0" | tee -a /etc/fstab
+mountpoint -q "$MOUNT_POINT" || mount "$MOUNT_POINT"
 
 mkdir -p /orchestrator/sandbox
 mkdir -p /orchestrator/template
@@ -73,13 +82,14 @@ mkdir -p /orchestrator/build
 # allocation does not fit reduced PoC workers and aborts bootstrap before
 # Nomad starts.
 SWAPFILE="/orchestrator/swapfile"
-fallocate -l 16G $SWAPFILE
+test -f "$SWAPFILE" || fallocate -l 16G "$SWAPFILE"
 chmod 600 $SWAPFILE
-mkswap $SWAPFILE
-swapon $SWAPFILE
+blkid "$SWAPFILE" >/dev/null 2>&1 || mkswap "$SWAPFILE"
+swapon --show=NAME --noheadings | grep -qxF "$SWAPFILE" || swapon "$SWAPFILE"
 
 # Make swapfile persistent
-echo "$SWAPFILE none swap sw 0 0" | tee -a /etc/fstab
+grep -qF "$SWAPFILE none swap sw 0 0" /etc/fstab || \
+  echo "$SWAPFILE none swap sw 0 0" | tee -a /etc/fstab
 
 # Set swap settings
 sysctl vm.swappiness=10

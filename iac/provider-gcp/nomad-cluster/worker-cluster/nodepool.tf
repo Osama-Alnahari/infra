@@ -122,16 +122,25 @@ resource "google_compute_region_instance_group_manager" "pool" {
 
   distribution_policy_target_shape = "BALANCED"
 
-  # Server is a stateful cluster, so the update strategy used to roll out a new GCE Instance Template must be
-  # a rolling update.
+  # Persistent-disk workers preserve sandbox/cache state across VM replacement.
+  dynamic "stateful_disk" {
+    for_each = local.has_local_ssd ? [] : [1]
+    content {
+      device_name = "persistent-disk-1"
+      delete_rule = "NEVER"
+    }
+  }
+
+  # Stateful MIGs require RECREATE with zero surge. Local-SSD workers remain
+  # stateless and can use SUBSTITUTE rolling replacements.
   update_policy {
     type                         = var.environment == "dev" ? "PROACTIVE" : "OPPORTUNISTIC"
     minimal_action               = "REPLACE"
-    max_surge_fixed              = 10
+    max_surge_fixed              = local.has_local_ssd ? 10 : 0
     max_surge_percent            = null
-    max_unavailable_fixed        = 5
+    max_unavailable_fixed        = local.has_local_ssd ? 5 : 3
     max_unavailable_percent      = null
-    replacement_method           = "SUBSTITUTE"
+    replacement_method           = local.has_local_ssd ? "SUBSTITUTE" : "RECREATE"
     instance_redistribution_type = "NONE"
   }
 
