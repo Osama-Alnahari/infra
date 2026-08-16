@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -113,6 +114,23 @@ func NewBoolFlag(name string, fallback bool) BoolFlag {
 func OverrideBoolFlag(flag BoolFlag, value bool) {
 	builder := launchDarklyOfflineStore.Flag(flag.name).VariationForAll(value)
 	launchDarklyOfflineStore.Update(builder)
+}
+
+// OverrideBoolFlagFromEnv applies an explicit operator override to the offline
+// feature-flag store. It returns false when the variable is unset. This keeps
+// production operations possible in installations that intentionally run
+// without LaunchDarkly while still rejecting ambiguous values.
+func OverrideBoolFlagFromEnv(flag BoolFlag, envName string) (bool, error) {
+	raw, ok := os.LookupEnv(envName)
+	if !ok {
+		return false, nil
+	}
+	value, err := strconv.ParseBool(strings.TrimSpace(raw))
+	if err != nil {
+		return false, fmt.Errorf("parse %s as boolean: %w", envName, err)
+	}
+	OverrideBoolFlag(flag, value)
+	return true, nil
 }
 
 // OverrideJSONFlag forces a JSON flag to a specific value in the offline store.

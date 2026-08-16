@@ -387,6 +387,22 @@ func run() int {
 		return redisClient.Close()
 	})
 
+	for _, override := range []struct {
+		flag    featureflags.BoolFlag
+		envName string
+	}{
+		{flag: featureflags.SnapshotGCEnabledFlag, envName: "SNAPSHOT_GC_ENABLED"},
+		{flag: featureflags.SnapshotGCDeleteEnabledFlag, envName: "SNAPSHOT_GC_DELETE_ENABLED"},
+	} {
+		applied, overrideErr := featureflags.OverrideBoolFlagFromEnv(override.flag, override.envName)
+		if overrideErr != nil {
+			logger.L().Fatal(ctx, "invalid feature flag environment override", zap.String("environment_variable", override.envName), zap.Error(overrideErr))
+		}
+		if applied {
+			logger.L().Info(ctx, "applied feature flag environment override", zap.String("flag", override.flag.Key()), zap.String("environment_variable", override.envName))
+		}
+	}
+
 	featureFlags, err := featureflags.NewClient()
 	if err != nil {
 		logger.L().Fatal(ctx, "failed to create feature flags client", zap.Error(err))
