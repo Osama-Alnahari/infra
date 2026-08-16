@@ -19,11 +19,15 @@ import (
 )
 
 const (
-	DefaultGracePeriod       = time.Hour
-	defaultLease             = 30 * time.Minute
-	defaultPoll              = 30 * time.Second
-	defaultReconcile         = 10 * time.Minute
-	defaultBatch       int32 = 1
+	DefaultGracePeriod = 15 * time.Minute
+	defaultLease       = 30 * time.Minute
+	defaultPoll        = 30 * time.Second
+	defaultReconcile   = 10 * time.Minute
+	// A batch is dispatched concurrently, but every candidate still executes in
+	// its own global+sandbox fenced transaction. The global fence serializes the
+	// final proof/mutation while concurrent dispatch removes the 30s poll gap
+	// between candidates and overlaps lock acquisition/coordination safely.
+	defaultBatch       int32 = 4
 	defaultMaxAttempts int32 = 12
 )
 
@@ -156,12 +160,27 @@ func (w *Worker) process(ctx context.Context) {
 	if len(jobs) == 0 {
 		return
 	}
-	job := jobs[0]
 	if w.withSnapshotLock == nil {
-		w.retry(ctx, job, errors.New("snapshot GC has no advisory-lock provider"))
+		w.retryAll(ctx, jobs, errors.New("snapshot GC has no advisory-lock provider"))
 		return
 	}
-	err = w.withSnapshotLock(ctx, job.SandboxID, func(locked Store) error {
+
+	var wg sync.WaitGroup
+	for _, job := range jobs {
+		job := job
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if jobErr := w.processJob(ctx, executor, job); jobErr != nil {
+				w.retry(ctx, job, jobErr)
+			}
+		}()
+	}
+	wg.Wait()
+}
+
+func (w *Worker) processJob(ctx context.Context, executor Executor, job queries.SnapshotGcJob) error {
+	return w.withSnapshotLock(ctx, job.SandboxID, func(locked Store) error {
 		// These are the final reads. The same advisory lock fences pause snapshot
 		// assignment creation until the storage mutation and job transition commit.
 		unsafe, listErr := locked.HasInProgressSnapshotBuilds(ctx)
@@ -215,9 +234,6 @@ func (w *Worker) process(ctx context.Context) {
 		}
 		return executeErr
 	})
-	if err != nil {
-		w.retry(ctx, job, err)
-	}
 }
 func (w *Worker) retryAll(ctx context.Context, jobs []queries.SnapshotGcJob, err error) {
 	for _, j := range jobs {

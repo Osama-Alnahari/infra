@@ -2,6 +2,8 @@ package snapshotgc
 
 import (
 	"context"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -12,6 +14,7 @@ import (
 )
 
 type fakeStore struct {
+	mu                           sync.Mutex
 	jobs                         []queries.SnapshotGcJob
 	heads                        []queries.ListCurrentSnapshotGCHeadsRow
 	protected                    []uuid.UUID
@@ -19,18 +22,28 @@ type fakeStore struct {
 	inProgress                   bool
 	leaseLost                    bool
 	renewLost                    bool
+	claimBatch                   int32
+	enqueuedGrace                time.Duration
 }
 
-func (f *fakeStore) EnqueueSupersededSnapshotGCJobs(context.Context, queries.EnqueueSupersededSnapshotGCJobsParams) (int64, error) {
+func (f *fakeStore) EnqueueSupersededSnapshotGCJobs(_ context.Context, p queries.EnqueueSupersededSnapshotGCJobsParams) (int64, error) {
+	f.mu.Lock()
+	f.enqueuedGrace = time.Duration(p.GracePeriod.Microseconds) * time.Microsecond
+	f.mu.Unlock()
 	return 1, nil
 }
 func (f *fakeStore) ReconcileSnapshotGCJobs(context.Context, queries.ReconcileSnapshotGCJobsParams) (int64, error) {
 	return 0, nil
 }
-func (f *fakeStore) ClaimSnapshotGCJobs(context.Context, queries.ClaimSnapshotGCJobsParams) ([]queries.SnapshotGcJob, error) {
+func (f *fakeStore) ClaimSnapshotGCJobs(_ context.Context, p queries.ClaimSnapshotGCJobsParams) ([]queries.SnapshotGcJob, error) {
+	f.mu.Lock()
+	f.claimBatch = p.BatchSize
+	f.mu.Unlock()
 	return f.jobs, nil
 }
 func (f *fakeStore) CompleteSnapshotGCJob(_ context.Context, p queries.CompleteSnapshotGCJobParams) (int64, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	f.completed = append(f.completed, p.ID)
 	return 1, nil
 }
@@ -44,10 +57,14 @@ func (f *fakeStore) RenewSnapshotGCLease(context.Context, queries.RenewSnapshotG
 	return 1, nil
 }
 func (f *fakeStore) RetrySnapshotGCJob(_ context.Context, p queries.RetrySnapshotGCJobParams) (int64, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	f.retried = append(f.retried, p.ID)
 	return 1, nil
 }
 func (f *fakeStore) DeferSnapshotGCJob(_ context.Context, p queries.DeferSnapshotGCJobParams) (int64, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	f.deferred = append(f.deferred, p.ID)
 	return 1, nil
 }
@@ -173,4 +190,65 @@ func TestProcessDoesNotMutateWhenLeaseRenewalLosesRace(t *testing.T) {
 	require.False(t, executorCalled, "a worker that cannot fence its lease row must never mutate storage")
 	require.Empty(t, store.completed)
 	require.Equal(t, []uuid.UUID{jobID}, store.retried)
+}
+
+func TestDefaultGracePeriodIsFifteenMinutes(t *testing.T) {
+	require.Equal(t, 15*time.Minute, DefaultGracePeriod)
+	store := &fakeStore{}
+	w := New(store, nil, nil, "test")
+	require.NoError(t, w.Enqueue(t.Context(), "env-a", uuid.New()))
+	require.Equal(t, 15*time.Minute, store.enqueuedGrace)
+}
+
+func TestProcessDispatchesClaimedBatchWithBoundedConcurrency(t *testing.T) {
+	head := uuid.New()
+	jobs := make([]queries.SnapshotGcJob, defaultBatch)
+	for i := range jobs {
+		jobs[i] = queries.SnapshotGcJob{ID: uuid.New(), SandboxID: uuid.NewString(), CandidateBuildID: uuid.New(), Attempts: 1}
+	}
+	store := &fakeStore{jobs: jobs, heads: []queries.ListCurrentSnapshotGCHeadsRow{{EnvID: "env-a", BuildID: head}}}
+
+	var active, maximum atomic.Int32
+	entered := make(chan struct{}, defaultBatch)
+	release := make(chan struct{})
+	executor := executorFunc(func(_ context.Context, req ExecuteRequest) (ExecuteResult, error) {
+		current := active.Add(1)
+		for {
+			observed := maximum.Load()
+			if current <= observed || maximum.CompareAndSwap(observed, current) {
+				break
+			}
+		}
+		entered <- struct{}{}
+		<-release
+		active.Add(-1)
+		return ExecuteResult{Deleted: map[uuid.UUID]bool{req.Candidates[0].BuildID: true}}, nil
+	})
+	w := New(store, executor, nil, "test")
+	// The production callback serializes final mutations with PostgreSQL. This
+	// pass-through test isolates and proves the worker's bounded dispatcher.
+	w.withSnapshotLock = func(ctx context.Context, _ string, fn func(Store) error) error { return fn(store) }
+	w.deleteEnabled = func(context.Context) bool { return true }
+	done := make(chan struct{})
+	go func() {
+		w.process(t.Context())
+		close(done)
+	}()
+	for range defaultBatch {
+		select {
+		case <-entered:
+		case <-time.After(time.Second):
+			t.Fatal("claimed GC batch was not dispatched concurrently")
+		}
+	}
+	close(release)
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("GC batch did not finish")
+	}
+
+	require.Equal(t, defaultBatch, maximum.Load())
+	require.Equal(t, defaultBatch, store.claimBatch)
+	require.Len(t, store.completed, int(defaultBatch))
 }
