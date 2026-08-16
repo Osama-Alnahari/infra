@@ -12,10 +12,13 @@ import (
 )
 
 const createTemplateBuildAssignment = `-- name: CreateTemplateBuildAssignment :execrows
-WITH active AS (
-    SELECT id
-    FROM "public"."envs"
-    WHERE id = $1 AND deleted_at IS NULL
+WITH snapshot_gc_fence AS MATERIALIZED (
+    SELECT pg_advisory_xact_lock_shared(hashtextextended('e2b:snapshot:global-roots', 0))
+), active AS (
+    SELECT env.id
+    FROM "public"."envs" env
+    CROSS JOIN snapshot_gc_fence
+    WHERE env.id = $1 AND env.deleted_at IS NULL
     FOR SHARE
 )
 INSERT INTO "public"."env_build_assignments" (env_id, build_id, tag)

@@ -12,9 +12,14 @@ import (
 )
 
 const createSnapshotTemplateEnv = `-- name: CreateSnapshotTemplateEnv :one
-WITH new_env AS (
+WITH snapshot_gc_fence AS MATERIALIZED (
+    SELECT pg_advisory_xact_lock_shared(hashtextextended('e2b:snapshot:global-roots', 0))
+),
+
+new_env AS (
     INSERT INTO "public"."envs" (id, public, created_by, team_id, updated_at, source, cluster_id)
-    VALUES ($1, FALSE, NULL, $2, now(), 'snapshot_template', $3)
+    SELECT $1, FALSE, NULL, $2, now(), 'snapshot_template', $3
+    FROM snapshot_gc_fence
     RETURNING id
 ),
 

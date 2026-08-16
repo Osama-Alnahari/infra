@@ -267,6 +267,7 @@ func NewAPIStore(ctx context.Context, tel *telemetry.Client, redisClient redis.U
 	if err != nil {
 		logger.L().Fatal(ctx, "Initializing Template manager client", zap.Error(err))
 	}
+	orch.SetSnapshotGCExecutor(templateManager)
 
 	// Start the periodic sync of template builds statuses
 	go templateManager.BuildsStatusPeriodicalSync(ctx)

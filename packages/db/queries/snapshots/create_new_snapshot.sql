@@ -1,7 +1,12 @@
 -- name: UpsertSnapshot :one
-WITH new_template AS (
+WITH snapshot_gc_fence AS MATERIALIZED (
+    SELECT pg_advisory_xact_lock_shared(hashtextextended('e2b:snapshot:global-roots', 0))
+),
+
+new_template AS (
     INSERT INTO "public"."envs" (id, public, created_by, team_id, updated_at, source, cluster_id)
     SELECT @template_id, FALSE, NULL, @team_id, now(), 'snapshot', @cluster_id
+    FROM snapshot_gc_fence
     WHERE NOT EXISTS (
         SELECT id
         FROM "public"."snapshots" s

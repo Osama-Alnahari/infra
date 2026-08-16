@@ -404,6 +404,14 @@ var (
 	// change before enabling prefetch on resume. Off by default.
 	PauseResumePrefetchConsumeFlag = NewBoolFlag("pause-resume-prefetch-consume", false)
 
+	// SnapshotGCEnabledFlag enables durable queue reconciliation and execution.
+	// Enqueueing remains unconditional so enabling later does not lose work.
+	SnapshotGCEnabledFlag = NewBoolFlag("snapshot-gc-enabled", false)
+
+	// SnapshotGCDeleteEnabledFlag permits physical deletion. Keeping it off runs
+	// the complete verification/planning path in dry-run mode.
+	SnapshotGCDeleteEnabledFlag = NewBoolFlag("snapshot-gc-delete-enabled", false)
+
 	// PauseResumePrefetchHarvestTimeoutMsFlag bounds the throwaway harvest resume
 	// (slot-hold cap), in milliseconds. The harvest is best-effort: a cut-short
 	// run is discarded (the build is simply re-harvested on its next pause), so

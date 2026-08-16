@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 	"go.opentelemetry.io/otel/metric"
 	"go.uber.org/zap"
@@ -20,6 +21,7 @@ import (
 	"github.com/e2b-dev/infra/packages/api/internal/orchestrator/evictor"
 	"github.com/e2b-dev/infra/packages/api/internal/orchestrator/nodemanager"
 	"github.com/e2b-dev/infra/packages/api/internal/orchestrator/placement"
+	snapshotgcworker "github.com/e2b-dev/infra/packages/api/internal/orchestrator/snapshotgc"
 	"github.com/e2b-dev/infra/packages/api/internal/sandbox"
 	redisreservations "github.com/e2b-dev/infra/packages/api/internal/sandbox/reservations/redis"
 	redisbackend "github.com/e2b-dev/infra/packages/api/internal/sandbox/storage/redis"
@@ -63,6 +65,7 @@ type Orchestrator struct {
 	accessTokenGenerator          *sandbox.AccessTokenGenerator
 	createdCounter                metric.Int64Counter
 	snapshotCache                 SnapshotCacheInvalidator
+	snapshotGC                    *snapshotgcworker.Worker
 
 	snapshotUpsertSem *utils.AdjustableSemaphore
 	redisStorage      *redisbackend.Storage
@@ -96,6 +99,14 @@ type Orchestrator struct {
 	// same string, and nesting Do calls for the same key on the same Group would
 	// block forever.
 	discoveryGroup singleflight.Group
+}
+
+// SetSnapshotGCExecutor wires the storage-owning executor without coupling the
+// durable API queue to a specific RPC implementation.
+func (o *Orchestrator) SetSnapshotGCExecutor(executor snapshotgcworker.Executor) {
+	if o.snapshotGC != nil {
+		o.snapshotGC.SetExecutor(executor)
+	}
 }
 
 func New(
@@ -187,6 +198,9 @@ func New(
 			RemoveSandboxFromNode:    o.killOrphanSandbox,
 		},
 	)
+
+	o.snapshotGC = snapshotgcworker.New(sqlcDB, nil, featureFlags, uuid.NewString())
+	go o.snapshotGC.Run(ctx)
 
 	// Evict old sandboxes
 	sandboxEvictor, err := evictor.New(ctx, o.sandboxStore, o.RemoveSandbox, o.featureFlagsClient, meter)

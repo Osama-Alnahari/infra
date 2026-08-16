@@ -14,6 +14,7 @@ import (
 
 	"github.com/e2b-dev/infra/packages/api/internal/orchestrator/nodemanager"
 	"github.com/e2b-dev/infra/packages/api/internal/sandbox"
+	sqlcdb "github.com/e2b-dev/infra/packages/db/client"
 	"github.com/e2b-dev/infra/packages/db/pkg/types"
 	"github.com/e2b-dev/infra/packages/db/queries"
 	"github.com/e2b-dev/infra/packages/shared/pkg/consts"
@@ -33,7 +34,36 @@ func (o *Orchestrator) pauseSandbox(ctx context.Context, node *nodemanager.Node,
 	ctx, span := tracer.Start(ctx, "pause-sandbox")
 	defer span.End()
 
-	result, err := o.throttledUpsertSnapshot(ctx, buildUpsertSnapshotParams(sbx, node, filesystemOnly))
+	// Hold the same advisory fence used by GC from before the new assignment is
+	// visible until snapshotting and ready-state promotion finish. Otherwise GC
+	// could read the old tip, delete one of its layers, and race a pause that is
+	// still deriving its successor from that tip.
+	var gcEnvID string
+	var gcSuccessor uuid.UUID
+	err := o.sqlcDB.WithSnapshotLock(ctx, sbx.SandboxID, func(locked *sqlcdb.Client) error {
+		return o.pauseSandboxLocked(ctx, locked, node, sbx, filesystemOnly, &gcEnvID, &gcSuccessor)
+	})
+	if err != nil {
+		return err
+	}
+	// Enqueue after the lock transaction commits so the queue connection can see
+	// the new assignment. Reconciliation remains the durable fallback.
+	if o.snapshotGC != nil {
+		if enqueueErr := o.snapshotGC.Enqueue(context.WithoutCancel(ctx), gcEnvID, gcSuccessor); enqueueErr != nil {
+			logger.L().Error(ctx, "failed to enqueue snapshot GC", zap.Error(enqueueErr),
+				logger.WithSandboxID(sbx.SandboxID), logger.WithBuildID(gcSuccessor.String()))
+		}
+	}
+	return nil
+}
+
+func (o *Orchestrator) pauseSandboxLocked(ctx context.Context, locked *sqlcdb.Client, node *nodemanager.Node, sbx sandbox.Sandbox, filesystemOnly bool, gcEnvID *string, gcSuccessor *uuid.UUID) error {
+
+	if err := o.snapshotUpsertSem.Acquire(ctx, 1); err != nil {
+		return err
+	}
+	result, err := locked.UpsertSnapshot(ctx, buildUpsertSnapshotParams(sbx, node, filesystemOnly))
+	o.snapshotUpsertSem.Release(1)
 	if err != nil {
 		telemetry.ReportCriticalError(ctx, "error inserting snapshot for env", err)
 
@@ -69,7 +99,7 @@ func (o *Orchestrator) pauseSandbox(ctx context.Context, node *nodemanager.Node,
 	}
 
 	now := time.Now()
-	err = o.sqlcDB.UpdateEnvBuildStatus(ctx, queries.UpdateEnvBuildStatusParams{
+	err = locked.UpdateEnvBuildStatus(ctx, queries.UpdateEnvBuildStatusParams{
 		Status:     types.BuildStatusSuccess,
 		FinishedAt: &now,
 		Reason:     types.BuildReason{},
@@ -82,6 +112,9 @@ func (o *Orchestrator) pauseSandbox(ctx context.Context, node *nodemanager.Node,
 	}
 
 	o.snapshotCache.Invalidate(context.WithoutCancel(ctx), sbx.SandboxID)
+
+	*gcEnvID = result.TemplateID
+	*gcSuccessor = result.BuildID
 
 	return nil
 }
@@ -177,5 +210,11 @@ func (o *Orchestrator) throttledUpsertSnapshot(ctx context.Context, params queri
 	}
 	defer o.snapshotUpsertSem.Release(1)
 
-	return o.sqlcDB.UpsertSnapshot(ctx, params)
+	var result queries.UpsertSnapshotRow
+	err := o.sqlcDB.WithSnapshotLock(ctx, params.SandboxID, func(locked *sqlcdb.Client) error {
+		var upsertErr error
+		result, upsertErr = locked.UpsertSnapshot(ctx, params)
+		return upsertErr
+	})
+	return result, err
 }

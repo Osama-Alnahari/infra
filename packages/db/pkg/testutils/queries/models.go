@@ -187,6 +187,24 @@ type Snapshot struct {
 	Config              []byte
 }
 
+type SnapshotGcJob struct {
+	ID               uuid.UUID
+	SnapshotEnvID    string
+	SandboxID        string
+	SuccessorBuildID *uuid.UUID
+	CandidateBuildID uuid.UUID
+	State            string
+	NotBefore        time.Time
+	NextAttemptAt    time.Time
+	Attempts         int32
+	LeaseOwner       pgtype.Text
+	LeaseExpiresAt   *time.Time
+	LastError        pgtype.Text
+	CreatedAt        time.Time
+	UpdatedAt        time.Time
+	CompletedAt      *time.Time
+}
+
 type SnapshotTemplate struct {
 	EnvID        string
 	SandboxID    string

@@ -125,6 +125,45 @@ message TemplateBuildDeleteRequest {
   string templateID = 2;
 }
 
+// Internal control-plane request for dependency-aware pause-snapshot cleanup.
+// The API owns candidate discovery, grace periods, and the global protection
+// set; the storage owner verifies every supplied head before deleting anything.
+message SnapshotGCHead {
+  string build_id = 1;
+  bool filesystem_only = 2;
+}
+
+message SnapshotGCCandidate {
+  string build_id = 1;
+  google.protobuf.Timestamp not_before = 2;
+}
+
+message SnapshotGCRequest {
+  repeated SnapshotGCHead heads = 1;
+  repeated SnapshotGCCandidate candidates = 2;
+  repeated string global_protected_build_ids = 3;
+  bool dry_run = 4;
+}
+
+enum SnapshotGCOutcomeKind {
+  SNAPSHOT_GC_OUTCOME_UNSPECIFIED = 0;
+  SNAPSHOT_GC_OUTCOME_DELETE_PLANNED = 1;
+  SNAPSHOT_GC_OUTCOME_DELETED = 2;
+  SNAPSHOT_GC_OUTCOME_RETAINED_REACHABLE = 3;
+  SNAPSHOT_GC_OUTCOME_RETAINED_GRACE = 4;
+  SNAPSHOT_GC_OUTCOME_DELETE_FAILED = 5;
+}
+
+message SnapshotGCOutcome {
+  string build_id = 1;
+  SnapshotGCOutcomeKind outcome = 2;
+  string error = 3;
+}
+
+message SnapshotGCResponse {
+  repeated SnapshotGCOutcome outcomes = 1;
+}
+
 message TemplateBuildMetadata {
   int32 rootfsSizeKey = 1;
   string envdVersionKey = 2;
@@ -177,6 +216,10 @@ service TemplateService {
 
   // TemplateBuildDelete is a gRPC service that deletes files associated with a template build
   rpc TemplateBuildDelete (TemplateBuildDeleteRequest) returns (google.protobuf.Empty);
+
+  // SnapshotGC is an internal, fail-closed storage operation. It is callable
+  // only over the protected template-manager control-plane service.
+  rpc SnapshotGC (SnapshotGCRequest) returns (SnapshotGCResponse);
 
   // InitLayerFileUpload requests an upload URL for a tar file containing layer files to be cached for the template build.
   rpc InitLayerFileUpload (InitLayerFileUploadRequest) returns (InitLayerFileUploadResponse);

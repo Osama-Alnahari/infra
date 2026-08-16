@@ -89,6 +89,24 @@ type Snapshot struct {
 	Config              *types.PausedSandboxConfig
 }
 
+type SnapshotGcJob struct {
+	ID               uuid.UUID
+	SnapshotEnvID    string
+	SandboxID        string
+	SuccessorBuildID *uuid.UUID
+	CandidateBuildID uuid.UUID
+	State            string
+	NotBefore        time.Time
+	NextAttemptAt    time.Time
+	Attempts         int32
+	LeaseOwner       *string
+	LeaseExpiresAt   *time.Time
+	LastError        *string
+	CreatedAt        time.Time
+	UpdatedAt        time.Time
+	CompletedAt      *time.Time
+}
+
 type UsersTeam struct {
 	ID        int64
 	UserID    uuid.UUID

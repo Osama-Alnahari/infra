@@ -111,6 +111,11 @@ func (s *gcpStorage) DeleteObjectsWithPrefix(ctx context.Context, prefix string)
 		}
 
 		err = s.bucket.Object(object.Name).Delete(ctx)
+		// Prefix deletion is intentionally idempotent. An object may disappear
+		// between listing and deletion, or a retry may follow a partial success.
+		if errors.Is(err, storage.ErrObjectNotExist) {
+			continue
+		}
 		if err != nil {
 			return fmt.Errorf("error when deleting template object: %w", err)
 		}
