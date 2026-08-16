@@ -113,14 +113,15 @@ func addHeaderReachability(dst map[uuid.UUID]struct{}, headID uuid.UUID, artifac
 	if h.Metadata == nil || h.Metadata.BuildId != headID {
 		return fmt.Errorf("snapshot head %s has mismatched %s header", headID, artifact)
 	}
-	// V3 headers do not carry an authoritative Builds index, so their ancestry
-	// cannot be proven without recursively loading older headers. GC must never
-	// guess at those dependencies.
-	if h.Metadata.Version < header.MetadataVersionV4 || h.Builds == nil {
-		return fmt.Errorf("snapshot head %s has unsupported dependency-unaware %s header version %d", headID, artifact, h.Metadata.Version)
-	}
 	if err := header.ValidateHeader(h); err != nil {
 		return fmt.Errorf("snapshot head %s has invalid %s header: %w", headID, artifact, err)
+	}
+	// V3 headers predate the auxiliary Builds index, but their block mapping is
+	// still the authoritative description of which build prefixes contain the
+	// data needed by this artifact. Protect every mapped build plus BaseBuildId.
+	// For V4+ retain the stronger mapping-to-index consistency check.
+	if h.Metadata.Version >= header.MetadataVersionV4 && h.Builds == nil {
+		return fmt.Errorf("snapshot head %s has missing %s build index", headID, artifact)
 	}
 	if h.Metadata.BaseBuildId != uuid.Nil {
 		dst[h.Metadata.BaseBuildId] = struct{}{}
@@ -130,8 +131,10 @@ func addHeaderReachability(dst map[uuid.UUID]struct{}, headID uuid.UUID, artifac
 		if buildID == uuid.Nil {
 			continue
 		}
-		if _, ok := h.Builds[buildID]; !ok {
-			return fmt.Errorf("snapshot head %s %s mapping references build %s without build metadata", headID, artifact, buildID)
+		if h.Metadata.Version >= header.MetadataVersionV4 {
+			if _, ok := h.Builds[buildID]; !ok {
+				return fmt.Errorf("snapshot head %s %s mapping references build %s without build metadata", headID, artifact, buildID)
+			}
 		}
 		dst[buildID] = struct{}{}
 	}

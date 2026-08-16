@@ -135,15 +135,18 @@ func TestBuildPlanFailsClosedForMissingIncompleteMismatchedOrCorruptHeaders(t *t
 	}
 }
 
-func TestBuildPlanFailsClosedForLegacyOrUnindexedHeaders(t *testing.T) {
+func TestBuildPlanSupportsLegacyMappingAndRejectsUnindexedModernHeader(t *testing.T) {
 	t.Parallel()
 	head := uuid.New()
 	root := testHeader(t, head, head)
+	legacyDependency := uuid.New()
 
-	legacy := testHeader(t, head, head)
+	legacy := testHeader(t, head, legacyDependency)
 	legacy.Metadata.Version = 3
-	plan, err := BuildPlan(time.Now(), []Head{{BuildID: head, Memory: legacy, Rootfs: root}}, []Candidate{{BuildID: uuid.New()}})
-	require.Error(t, err)
+	legacy.Builds = nil
+	plan, err := BuildPlan(time.Now(), []Head{{BuildID: head, Memory: legacy, Rootfs: root}}, []Candidate{{BuildID: legacyDependency}})
+	require.NoError(t, err)
+	require.Equal(t, RetainReachable, plan.Retain[legacyDependency])
 	require.Empty(t, plan.Delete)
 
 	unindexed := testHeader(t, head, head)
