@@ -102,7 +102,34 @@ Supporting packages: `packages/shared` (protos, telemetry, storage clients, feat
 `packages/clickhouse` (ClickHouse schema + clients), `packages/otel-collector` (collector config),
 `packages/nomad-nodepool-apm` (autoscaler plugin), `packages/local-dev` (local stack).
 
+### Etlaq stateless worker capacity controller
+
+Etlaq runs an additive regional stateless worker MIG alongside the preserved
+stateful worker fleet. A systemd timer on the API VM evaluates authoritative
+E2B per-node running and starting sandbox counts every 30 seconds. It scales
+the stateless MIG from 1 to 5 workers; CPU utilization is not an input.
+
+Scale-in is fenced and two-phase: the controller marks one exact stateless
+orchestrator draining, marks its Nomad node scheduling-ineligible, waits for
+both running and starting counts to reach zero, then deletes that exact MIG
+instance. It reconciles API node inventory against the MIG so stale records
+cannot be selected. Stateful workers and their preserved disks are outside
+the controller's ownership.
+
 ### API (`packages/api`)
+
+Snapshot generations are reclaimed asynchronously rather than in the pause
+critical path. A durable PostgreSQL queue records superseded generations after
+pause, applies a rollback grace period, and uses leased, retryable workers. The
+worker sends every active snapshot/template head and protected root to the
+storage-owning template manager. Pause and build-assignment writes share a
+database advisory fence with collection, preventing a new dependency from
+appearing between the final reachability read and deletion. Before deleting an
+explicit UUID prefix, the template manager reloads both finalized artifact
+headers from object storage and proves that the candidate is unreachable.
+Missing, legacy, corrupt, or partially uploaded headers fail closed. Processing
+and physical deletion use separate feature flags; both are disabled by default
+so rollout begins in verified dry-run mode.
 
 The control-plane entry point (Gin, OpenAPI-generated from `spec/openapi.yml`, port 80).
 

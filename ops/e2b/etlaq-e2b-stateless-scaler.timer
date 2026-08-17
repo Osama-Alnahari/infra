@@ -1,0 +1,11 @@
+[Unit]
+Description=Run Etlaq E2B stateless capacity controller
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=30s
+AccuracySec=5s
+Persistent=false
+
+[Install]
+WantedBy=timers.target

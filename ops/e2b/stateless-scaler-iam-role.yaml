@@ -1,0 +1,8 @@
+title: Etlaq E2B Stateless Scaler
+description: Minimal permissions for the bounded stateless E2B MIG controller.
+stage: GA
+includedPermissions:
+  - compute.instanceGroupManagers.get
+  - compute.instanceGroupManagers.update
+  - compute.instanceGroups.get
+  - compute.instances.get

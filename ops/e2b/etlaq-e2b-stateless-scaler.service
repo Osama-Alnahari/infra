@@ -1,0 +1,19 @@
+[Unit]
+Description=Etlaq E2B stateless capacity controller
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+EnvironmentFile=/etc/etlaq/e2b-stateless-scaler.env
+Environment="PATH=/snap/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+Environment="CLOUDSDK_CONFIG=/var/lib/etlaq-e2b-scaler/gcloud"
+Environment="E2B_SCALER_GCLOUD=/snap/google-cloud-cli/current/bin/gcloud"
+ExecStart=/usr/local/lib/etlaq-e2b-scaler/stateless_capacity_controller.py
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/etlaq-e2b-scaler /run/lock
+TimeoutStartSec=240
