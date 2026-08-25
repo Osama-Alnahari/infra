@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"time"
 
 	"github.com/gin-gonic/gin"
 	"go.opentelemetry.io/otel/trace"
@@ -42,9 +41,9 @@ func (a *APIStore) PostSandboxesSandboxIDConnect(c *gin.Context, sandboxID api.S
 		return
 	}
 
-	timeout := time.Duration(body.Timeout) * time.Second
-	if timeout > time.Duration(teamInfo.Limits.MaxLengthHours)*time.Hour {
-		a.sendAPIStoreError(c, http.StatusBadRequest, fmt.Sprintf("Timeout cannot be greater than %d hours", teamInfo.Limits.MaxLengthHours))
+	timeout, timeoutErr := validateAndParseTimeout(&body.Timeout, teamInfo.Limits.MaxLengthHours)
+	if timeoutErr != nil {
+		a.sendAPIStoreError(c, timeoutErr.Code, timeoutErr.ClientMsg)
 
 		return
 	}
