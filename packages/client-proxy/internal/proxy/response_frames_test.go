@@ -31,6 +31,15 @@ func TestNormalizeEmbeddedPreviewFramesAddsPolicyWhenMissing(t *testing.T) {
 	assert.Equal(t, studioFrameAncestors, response.Header.Get("Content-Security-Policy"))
 }
 
+func TestStudioFrameAncestorsAllowsHostedStudioEnvironments(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t,
+		"frame-ancestors https://etlaq.sa https://www.etlaq.sa https://dev.etlaq.sa https://www.dev.etlaq.sa https://*.run.app http://localhost:* http://127.0.0.1:*",
+		studioFrameAncestors,
+	)
+}
+
 func TestNormalizeEmbeddedPreviewFramesPreservesMultiplePolicies(t *testing.T) {
 	t.Parallel()
 
@@ -43,6 +52,16 @@ func TestNormalizeEmbeddedPreviewFramesPreservesMultiplePolicies(t *testing.T) {
 		"default-src 'self'; " + studioFrameAncestors,
 		"img-src https: data:; " + studioFrameAncestors,
 	}, response.Header.Values("Content-Security-Policy"))
+}
+
+func TestNormalizeEmbeddedPreviewFramesReplacesWhitespaceSeparatedDirective(t *testing.T) {
+	t.Parallel()
+
+	response := &http.Response{Header: make(http.Header)}
+	response.Header.Set("Content-Security-Policy", "default-src 'self'; frame-ancestors\t'none'")
+
+	require.NoError(t, normalizeEmbeddedPreviewFrames(response))
+	assert.Equal(t, "default-src 'self'; "+studioFrameAncestors, response.Header.Get("Content-Security-Policy"))
 }
 
 func TestNormalizeEmbeddedPreviewResponseNormalizesCookiesAndFrames(t *testing.T) {

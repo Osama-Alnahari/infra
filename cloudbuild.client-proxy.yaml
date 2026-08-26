@@ -1,0 +1,31 @@
+steps:
+  - id: focused-tests
+    name: golang:1.26.5-alpine3.24
+    dir: packages/client-proxy
+    entrypoint: go
+    args:
+      - test
+      - ./internal/proxy
+      - -run
+      - TestNormalizeEmbeddedPreviewFrames|TestStudioFrameAncestors
+
+  - id: build
+    name: gcr.io/cloud-builders/docker
+    env:
+      - DOCKER_BUILDKIT=1
+    args:
+      - build
+      - --platform=linux/amd64
+      - --build-arg
+      - COMMIT_SHA=$_IMAGE_TAG
+      - -f
+      - packages/client-proxy/Dockerfile
+      - -t
+      - me-central2-docker.pkg.dev/$PROJECT_ID/etlaq-e2b-poc-core/client-proxy:$_IMAGE_TAG
+      - packages
+
+images:
+  - me-central2-docker.pkg.dev/$PROJECT_ID/etlaq-e2b-poc-core/client-proxy:$_IMAGE_TAG
+
+options:
+  logging: CLOUD_LOGGING_ONLY

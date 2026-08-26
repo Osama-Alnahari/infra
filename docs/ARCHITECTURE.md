@@ -239,9 +239,10 @@ This keeps preview sessions available inside a cross-site iframe while isolating
 embedding top-level site. Applications deployed outside the sandbox edge do not traverse this
 proxy and retain their own cookie policy.
 On that same canonical preview domain, client-proxy removes upstream `X-Frame-Options` and
-replaces only the CSP `frame-ancestors` directive with Etlaq's production Studio origins and
-local-development origins. Other application CSP directives are preserved. This lets legacy
-generated applications remain embeddable without relaxing framing for deployed applications.
+replaces only the CSP `frame-ancestors` directive with Etlaq's production and development Studio
+origins, HTTPS Cloud Run origins under `*.run.app`, and local-development origins. Other
+application CSP directives are preserved. This lets legacy generated applications remain
+embeddable without relaxing framing for deployed applications.
 
 ### Dashboard API (`packages/dashboard-api`)
 

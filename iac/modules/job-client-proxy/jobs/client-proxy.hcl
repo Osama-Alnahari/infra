@@ -77,6 +77,8 @@ job "client-proxy" {
       healthy_deadline = "30s"
       # Whether to promote the canary if the rest of the group is not healthy
       auto_promote     = true
+      # Restore the previous stable job when a promoted allocation becomes unhealthy
+      auto_revert      = true
       # Deadline for the update to be completed
       progress_deadline = "24h"
     }
