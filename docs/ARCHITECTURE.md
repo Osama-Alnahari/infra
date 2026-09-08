@@ -107,7 +107,8 @@ Supporting packages: `packages/shared` (protos, telemetry, storage clients, feat
 Etlaq runs an additive regional stateless worker MIG alongside the preserved
 stateful worker fleet. A systemd timer on the API VM evaluates authoritative
 E2B per-node running and starting sandbox counts every 30 seconds. It scales
-the stateless MIG from 1 to 5 workers; CPU utilization is not an input.
+the stateless MIG from 0 to 5 workers; CPU utilization is not an input. When
+legacy capacity has sufficient headroom, the stateless fleet can scale to zero.
 
 Scale-in is fenced and two-phase: the controller marks one exact stateless
 orchestrator draining, marks its Nomad node scheduling-ineligible, waits for

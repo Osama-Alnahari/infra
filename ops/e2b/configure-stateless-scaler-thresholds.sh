@@ -10,6 +10,9 @@ if [[ "$mode" != "observe" && "$mode" != "enable" ]]; then
 fi
 
 sed -i \
+  -e '/^E2B_SCALER_MIN_WORKERS=/d' \
+  -e '/^E2B_SCALER_MAX_WORKERS=/d' \
+  -e '/^E2B_SCALER_SLOTS_PER_WORKER=/d' \
   -e '/^E2B_SCALER_WORKER_SCALE_OUT_SLOTS=/d' \
   -e '/^E2B_SCALER_WORKER_SATURATION_RESET_SLOTS=/d' \
   -e '/^E2B_SCALER_MIN_FREE_SLOTS=/d' \
@@ -18,6 +21,9 @@ sed -i \
   "$env_file"
 
 {
+  echo 'E2B_SCALER_MIN_WORKERS=0'
+  echo 'E2B_SCALER_MAX_WORKERS=5'
+  echo 'E2B_SCALER_SLOTS_PER_WORKER=17'
   echo 'E2B_SCALER_WORKER_SCALE_OUT_SLOTS=14'
   echo 'E2B_SCALER_WORKER_SATURATION_RESET_SLOTS=10'
   echo 'E2B_SCALER_MIN_FREE_SLOTS=8'

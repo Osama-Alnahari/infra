@@ -178,6 +178,19 @@ def decide(
     draining_id = state.get("draining")
     draining_node = next((node for node in stateless if node.get("id") == draining_id), None)
 
+    # Minimum capacity is an invariant, not a utilization decision. Reconcile it
+    # before draining, cooldown, and registration checks so an externally
+    # scaled-to-zero MIG is restored immediately, including with stale state.
+    if workers < config.min_workers:
+        return {
+            "action": "scale_out",
+            "size": config.min_workers,
+            "reason": "below_minimum",
+            "active": active,
+            "free_slots": free_slots,
+            "peak_stateless": peak_stateless,
+        }
+
     if draining_id and managed_workers is not None and draining_id not in managed_workers:
         return {"action": "clear_draining", "reason": "worker_absent_from_mig", "active": active}
 
@@ -303,8 +316,8 @@ def cycle(config: Config) -> dict[str, Any]:
 
 def main() -> int:
     config = load_config()
-    if not (1 <= config.min_workers <= config.max_workers <= 5):
-        raise ValueError("worker bounds must satisfy 1 <= min <= max <= 5")
+    if not (0 <= config.min_workers <= config.max_workers <= 5):
+        raise ValueError("worker bounds must satisfy 0 <= min <= max <= 5")
     if config.slots_per_worker != 17:
         raise ValueError("slots_per_worker must remain at the verified safe value 17")
     if not (0 < config.worker_saturation_reset_slots < config.worker_scale_out_slots <= config.slots_per_worker):
